@@ -5,8 +5,8 @@ from requests.auth import HTTPBasicAuth
 import json
 
 
-user = 'jashwanthreddy862@gmail.com'
-password = 'wiikejlibqyzbovo'
+user = ';dfkopv@gmail.com'
+password = ',enfmgl;kg'
 imap_url = 'imap.gmail.com'
 
 jira_user = "akonganapati@gmail.com"
