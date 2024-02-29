@@ -1,1 +1,104 @@
 # pythonproject
++*896+import email
+import imaplib
+import requests
+from requests.auth import HTTPBasicAuth
+import json
+
+
+user = 'jashwanthreddy862@gmail.com'
+password = 'wiikejlibqyzbovo'
+imap_url = 'imap.gmail.com'
+
+jira_user = "akonganapati@gmail.com"
+jira_api_token = "ATATT3xFfGF0ul3whW_KvmLEjRHzf-ytPcyZpJpA4YTcjYhvpKsFNoh5GdzAivlUMvjePgRKhwkS_oe1jfR5R4Qk-vHHagec5X1aSpluXMcbsBsKZy0grEOC_-gl-uj7_uP7TCkzE2TMElHxI89pposLXGERU4GNUAK5brRy0RS9puBzHugF_Zc=366DA52C"
+jira_url = "https://ajay-1998.atlassian.net/rest/api/3/issue/"
+project_id = "10003"
+issue_type_id = "10000"
+
+
+slack_webhook_url = 'https://hooks.slack.com/services/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'
+
+
+
+def get_body(msg):
+    if msg.is_multipart():
+        return get_body(msg.get_payload(0))
+    else:
+        return msg.get_payload(None, True)
+
+
+
+def send_message_to_slack(text):
+    slack_data = {'text': text}
+    response = requests.post(slack_webhook_url, data=json.dumps(slack_data),
+                             headers={'Content-Type': 'application/json'})
+    if response.status_code != 200:
+        raise ValueError(
+            f"Request to slack returned an error {response.status_code}, the response is:\n{response.text}")
+
+
+
+con = imaplib.IMAP4_SSL(imap_url)
+con.login(user, password)
+con.select('INBOX')
+
+result, data = con.search(None, 'UNSEEN')
+msgs = data[0].split()
+
+for num in msgs:
+    typ, data = con.fetch(num, '(RFC822)')
+    for response_part in data:
+        if isinstance(response_part, tuple):
+            msg = email.message_from_bytes(response_part[1])
+            email_subject = msg['subject']
+            email_body = get_body(msg).decode('utf-8')
+
+            # Prepare the data for the Jira issue
+            issue_data = {
+                "fields": {
+                    "project": {
+                        "id": project_id
+                    },
+                    "summary": email_subject,
+                    "description": {
+                        "type": "doc",
+                        "version": 1,
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [
+                                    {
+                                        "text": email_body,
+                                        "type": "text"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "issuetype": {
+                        "id": issue_type_id
+                    }
+                }
+            }
+
+
+            payload = json.dumps(issue_data)
+            headers = {"Content-Type": "application/json"}
+            response = requests.post(jira_url, auth=HTTPBasicAuth(jira_user, jira_api_token), headers=headers,
+                                     data=payload)
+
+            if response.status_code == 201:
+                issue_key = response.json()["key"]
+                print("Issue created successfully. Issue key:", issue_key)
+                jira_ticket_url = f"{jira_url.split('/rest/api')[0]}/browse/{issue_key}"
+
+
+                slack_message = f"New Jira issue created: {jira_ticket_url}"
+                send_message_to_slack(slack_message)
+            else:
+                print("Failed to create issue:", response.status_code, response.text)
+
+
+con.close()
+con.logout()
